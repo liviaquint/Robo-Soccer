@@ -1,0 +1,20 @@
+O que aconteceu faz todo o sentido! Ao usar uma fonte de 12V, você deu tensão suficiente para o motor vencer a inércia inicial ("ele foi"), mas logo em seguida o sistema travou ou reiniciou por um destes motivos críticos:
+
+1. Reset por Brownout (Falta de Corrente): Se a sua fonte de 12V tiver uma corrente baixa (por exemplo, aquelas fontes de roteador de 12V 0.5A ou 1A), quando os dois motores amarelos partem juntos, eles tentam puxar mais corrente do que a fonte aguenta. A tensão da fonte cai bruscamente, o ESP32 desliga por milissegundos, perde o Bluetooth e o robô para.
+2. Superaquecimento/Proteção da Ponte H: Os motores amarelos comuns são projetados para trabalhar entre 3V e 9V (o ideal é 6V). Jogar 12V direto neles faz com que consumam o dobro ou triplo da corrente normal. Se você estiver usando uma ponte H como a L298N, ela esquenta muito rápido e entra em modo de proteção térmica, desligando os motores para não queimar.
+
+🛠️ Como resolver isso agora?
+
+Para estabilizar o seu robô com essa fonte de 12V, você precisa ajustar o circuito e o código:
+
+1. Limite a velocidade máxima no código
+
+Como os 12V são demais para o motor amarelo, reduza o limite do PWM no código para que ele envie apenas uma "fração" desses 12V para os motores.
+• Mude a linha #define MAX_MOTOR_SPEED 255 para #define MAX_MOTOR_SPEED 120.
+• Isso fará com que a ponte H envie em média cerca de 5V a 6V para os motores, reduzindo o tranco inicial e o consumo de corrente.
+
+2. Separe as Linhas de Alimentação (Crucial)
+
+O ESP32 não pode receber os mesmos "ruídos" e quedas de tensão que os motores provocam na linha de 12V.
+• Se usa a Ponte H L298N (Modula Azul): Ligue os 12V da fonte no pino 12V dela e mantenha o jumper de ativação do regulador de 5V conectado. Puxe um fio do pino 5V da L298N para o pino VIN (ou 5V) do ESP32. Certifique-se de que o GND da fonte, da L298N e do ESP32 estão todos conectados juntos.
+• Teste com o USB: Para tirar a dúvida se o problema é falta de energia no ESP32, mantenha a fonte de 12V ligada apenas na ponte H para rodar os motores, e alimente o ESP32 conectando-o direto no cabo USB do computador/carregador de celular. Se rodar perfeitamente sem cair, o problema é puramente a alimentação do ESP32 que estava caindo junto com os motores.
