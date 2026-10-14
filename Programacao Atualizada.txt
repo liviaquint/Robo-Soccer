@@ -1,0 +1,134 @@
+#define CUSTOM_SETTINGS
+#define INCLUDE_GAMEPAD_MODULE
+#include <DabbleESP32.h>
+
+// Motor Direito
+const int enableRightMotor = 22; 
+const int rightMotorPin1 = 16;
+const int rightMotorPin2 = 17;
+
+// Motor Esquerdo
+const int enableLeftMotor = 23;
+const int leftMotorPin1 = 18;
+const int leftMotorPin2 = 19;
+
+// LIMITADO PARA 140: Como sua fonte é 12V e o motor é de 6V, 
+// o valor 140 envia a tensão ideal e evita sobrecarga/travamento.
+#define MAX_MOTOR_SPEED 140 
+
+// Configurações do PWM (Nova API)
+const int PWMFreq = 1000; /* 1 KHz */
+const int PWMResolution = 8; // 8 bits (0 a 255)
+
+// Variáveis para rampa de aceleração suave (Evita o reset por pico de corrente)
+int currentRightSpeed = 0;
+int currentLeftSpeed = 0;
+const int ACCEL_STEP = 15; // O quão rápido ele acelera (valores maiores = mais rápido)
+
+void rotateMotor(int targetRightSpeed, int targetLeftSpeed)
+{
+  // --- RAMPA DE ACELERAÇÃO SUAVE (A mágica para não resetar) ---
+  if (currentRightSpeed < targetRightSpeed) currentRightSpeed = min(currentRightSpeed + ACCEL_STEP, targetRightSpeed);
+  else if (currentRightSpeed > targetRightSpeed) currentRightSpeed = max(currentRightSpeed - ACCEL_STEP, targetRightSpeed);
+
+  if (currentLeftSpeed < targetLeftSpeed) currentLeftSpeed = min(currentLeftSpeed + ACCEL_STEP, targetLeftSpeed);
+  else if (currentLeftSpeed > targetLeftSpeed) currentLeftSpeed = max(currentLeftSpeed - ACCEL_STEP, targetLeftSpeed);
+
+  // Controle de Direção do Motor Direito
+  if (currentRightSpeed < 0)
+  {
+    digitalWrite(rightMotorPin1, LOW);
+    digitalWrite(rightMotorPin2, HIGH);    
+  }
+  else if (currentRightSpeed > 0)
+  {
+    digitalWrite(rightMotorPin1, HIGH);
+    digitalWrite(rightMotorPin2, LOW);      
+  }
+  else
+  {
+    digitalWrite(rightMotorPin1, LOW);
+    digitalWrite(rightMotorPin2, LOW);      
+  }
+  
+  // Controle de Direção do Motor Esquerdo
+  if (currentLeftSpeed < 0)
+  {
+    digitalWrite(leftMotorPin1, LOW);
+    digitalWrite(leftMotorPin2, HIGH);    
+  }
+  else if (currentLeftSpeed > 0)
+  {
+    digitalWrite(leftMotorPin1, HIGH);
+    digitalWrite(leftMotorPin2, LOW);      
+  }
+  else
+  {
+    digitalWrite(leftMotorPin1, LOW);
+    digitalWrite(leftMotorPin2, LOW);      
+  }
+  
+  // Aplica o PWM diretamente nos pinos de Enable (Nova API ESP32)
+  ledcWrite(enableRightMotor, abs(currentRightSpeed));
+  ledcWrite(enableLeftMotor, abs(currentLeftSpeed));  
+}
+
+void setUpPinModes()
+{
+  // Define os pinos de direção como SAÍDA antes de qualquer coisa
+  pinMode(rightMotorPin1, OUTPUT);
+  pinMode(rightMotorPin2, OUTPUT);
+  pinMode(leftMotorPin1, OUTPUT);
+  pinMode(leftMotorPin2, OUTPUT);
+  
+  pinMode(enableRightMotor, OUTPUT);
+  pinMode(enableLeftMotor, OUTPUT);
+
+  // Inicializa a nova API de PWM do ESP32
+  ledcAttach(enableRightMotor, PWMFreq, PWMResolution);
+  ledcAttach(enableLeftMotor, PWMFreq, PWMResolution); 
+
+  rotateMotor(0, 0); 
+}
+
+void setup()
+{
+  setUpPinModes();
+  Dabble.begin("Robo2RodasBluetooth"); 
+}
+
+void loop()
+{
+  int targetRightSpeed = 0;
+  int targetLeftSpeed = 0;
+  
+  Dabble.processInput();
+
+  // Verifica os botões do Gamepad
+  if (GamePad.isUpPressed())
+  {
+    targetRightSpeed = MAX_MOTOR_SPEED;
+    targetLeftSpeed = MAX_MOTOR_SPEED;
+  }
+  else if (GamePad.isDownPressed())
+  {
+    targetRightSpeed = -MAX_MOTOR_SPEED;
+    targetLeftSpeed = -MAX_MOTOR_SPEED;
+  }
+  else if (GamePad.isLeftPressed())
+  {
+    targetRightSpeed = MAX_MOTOR_SPEED;
+    targetLeftSpeed = -MAX_MOTOR_SPEED;
+  }
+  else if (GamePad.isRightPressed())
+  {
+    targetRightSpeed = -MAX_MOTOR_SPEED;
+    targetLeftSpeed = MAX_MOTOR_SPEED;
+  }
+
+  // Executa o controle com a aceleração corrigida
+  rotateMotor(targetRightSpeed, targetLeftSpeed);
+  
+  // Pequeno delay para dar tempo da rampa de aceleração processar suavemente
+  delay(10); 
+}
